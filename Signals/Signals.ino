@@ -6,9 +6,11 @@
     bulbs using PWM for two level of brightness.
 */
 
-const int left = 9;           // the PWM pin for the left side lamps
-const int right = 10;         // the PWM pin for the right side lamps
+// Here are the PWM outputs
+const int left = 9;
+const int right = 10;
 
+// Here are the input GPIO
 const int left_signal = 2;
 const int right_signal = 3;
 const int running_lamps = 4;
@@ -16,32 +18,30 @@ const int flashers = 5;
 
 // the setup routine runs once when you press reset:
 void setup() {
-  // declare pin 9 to be an output:
+  // declare PWM as outputs
   pinMode(left, OUTPUT);
   pinMode(right, OUTPUT);
 
+  // declare switch states as inputs
   pinMode(left_signal, INPUT);
   pinMode(right_signal, INPUT);
   pinMode(running_lamps, INPUT);
   pinMode(flashers, INPUT);
 
+  // set up our serial for debug
   Serial.begin(115200);
 }
 
+// the state of each switch
 int running_lamps_active = 0;
 int flashers_active = 0;
 int left_signal_active = 0;
 int right_signal_active = 0;
 
-const int counts_per_blink = 5;
+const int counts_per_blink = 7;
 const int delay_per_loop = 100; // milliseconds
 
-int loop_count = 0;
-int current_left = 0;
-int current_right = 0;
-int signal_change = 0;
-int state = 0;
-
+// Our lamp levels run 0 through 255
 const int blink_level = 255;
 const int running_level = 128;
 int left_level;
@@ -78,8 +78,17 @@ void show_level(void)
 
 // the loop routine runs over and over again forever:
 void loop() {
-  signal_change = 0;
+  // These static variables only get initialized once
+  static int loop_count = 0;
+  static int current_left = 0;
+  static int current_right = 0;
 
+  int signal_change = 0;
+  int state = 0;
+
+  // With no input state changes, we reset the loop_count
+  // every counts_per_blink passes, setting our effective
+  // signal and flasher blink rate.
   if (loop_count >= counts_per_blink) {
     loop_count = 0;
   }
@@ -125,33 +134,39 @@ void loop() {
   }
 
   // We update actual lamp status only on loop_count == 0.
-  // If there was a signal change, note that here.
+  // If there was a signal change, force to 0 now.
+  // This will force an immediate change instead of delaying
+  // for current loop_count to reach its limit.
   if (signal_change) {
     loop_count = 0;   // changes effective immediately
     Serial.write("Signal change detected\n");
   }
 
-  if (flashers_active) {
-    // We simulate flashers using both signals
-    // Make sure they match!
-    if (!loop_count) {
+  // If loop_count is 0, we need to adjust the
+  // current left and right states based on the
+  // state of the flasher switch and signal lever.
+  if(!loop_count) {
+    if (flashers_active) {
+      // We simulate flashers using both signals
+      // Make sure they match!
       current_left ^= 1;
       current_right = current_left;
     }
-  }
-  else {
-    if (!left_signal_active) {
-      current_left = 0;
-    }
-    else if (!loop_count) {
-      current_left ^= 1;
-    }
-      
-    if (!right_signal_active) {
-      current_right = 0;
-    }
-    else if (!loop_count) {
-      current_right ^= 1;
+    else {
+      // No flashers, but check for signals
+      if (!left_signal_active) {
+        current_left = 0;
+      }
+      else {
+        current_left ^= 1;
+      }
+        
+      if (!right_signal_active) {
+        current_right = 0;
+      }
+      else {
+        current_right ^= 1;
+      }
     }
   }
 
@@ -191,6 +206,8 @@ void loop() {
     show_level();
   }
 
+  // after all of the above, we finally set
+  // the actual active level of the bulb
   analogWrite(left, left_level);
   analogWrite(right, right_level);
 
